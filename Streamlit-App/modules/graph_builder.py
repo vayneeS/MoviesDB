@@ -170,7 +170,9 @@ def _extract_node_labels(node):
 
 
 def build_pyvis_graph(nodes, relationships, height="600px",
-                      style_file=None, label_map=None, debug=False):
+                      style_file=None, label_map=None, debug=False,
+                      bc_scores=None, communities=None,
+                      bc_threshold=0.0):
     """Construit un graphe interactif avec Pyvis.
 
     Args:
@@ -180,6 +182,9 @@ def build_pyvis_graph(nodes, relationships, height="600px",
         style_file: Chemin vers fichier .grass de styles (optionnel)
         label_map: Mapping de labels personnalisé (optionnel)
         debug: Active le mode debug (défaut: False)
+        bc_scores: dict {node_id: float} scores Betweenness Centrality
+        communities: dict {node_id: int} index de communauté
+        bc_threshold: Seuil BC minimum pour mise en évidence (0.0–1.0)
 
     Returns:
         HTML du graphe ou dict avec 'html' et 'debug' si debug=True
@@ -238,10 +243,64 @@ def build_pyvis_graph(nodes, relationships, height="600px",
         )
 
         # Taille (size ou diameter) et bord
-        size = _to_int_px(
+        base_size = _to_int_px(
             style.get("diameter", style.get("size", None)), fallback=25
         )
-        border_width = _to_int_px(style.get("border-width", None), fallback=2)
+
+        # --- Betweenness Centrality : taille + bordure pont ---
+        bc_val = (bc_scores or {}).get(node["id"], 0.0)
+        is_bridge = bc_val >= bc_threshold and bc_val > 0.0
+
+        # Taille : x3 fixe pour les ponts, sinon taille normale
+        if is_bridge:
+            size = base_size * 3
+        else:
+            size = base_size
+
+        # Bordure : or épais si pont, sinon style normal
+        if is_bridge:
+            bg_color = "#296218"
+            border_color = "#c9a84c"
+            border_width = max(4, int(bc_val * 12))
+        else:
+            border_color = hex_to_rgba(
+                style.get("border-color", "#000000")
+            )
+            border_width = _to_int_px(
+                style.get("border-width", None), fallback=2
+            )
+
+        # --- Communautés : teinte de fond (sauf si nœud pont) ---
+        community_idx = (communities or {}).get(node["id"], None)
+        if community_idx is not None and bc_scores is not None \
+                and not is_bridge:
+            from modules.graph_analyzer import get_community_color
+            bg_color = get_community_color(community_idx)
+            color_arg = {
+                "background": bg_color,
+                "border": border_color,
+                "highlight": {
+                    "background": bg_color,
+                    "border": "#ffffff"
+                },
+                "hover": {
+                    "background": bg_color,
+                    "border": "#ffffff"
+                }
+            }
+        else:
+            color_arg = {
+                "background": bg_color,
+                "border": border_color,
+                "highlight": {
+                    "background": bg_color,
+                    "border": border_color
+                },
+                "hover": {
+                    "background": bg_color,
+                    "border": border_color
+                }
+            }
 
         # Caption : privilégier le champ 'name' ou template du .grass
         caption_template = (
@@ -263,19 +322,19 @@ def build_pyvis_graph(nodes, relationships, height="600px",
         font_size = max(10, int(size / 3))
         font_color = text_color_internal
 
-        # Créer l'argument color pour vis.js (background + border)
-        color_arg = {
-            "background": bg_color,
-            "border": border_color,
-            "highlight": {"background": bg_color, "border": border_color},
-            "hover": {"background": bg_color, "border": border_color}
-        }
-
-        # Créer le titre avec toutes les propriétés sauf id, label, labels
+        # Tooltip enrichi avec BC et communauté
         properties = [
             f"{k}: {v}" for k, v in node.items()
             if k not in ("id", "label", "labels")
         ]
+        if bc_scores is not None:
+            bc_val_fmt = f"{bc_val:.4f}"
+            bridge_tag = " 🌉 PONT" if is_bridge else ""
+            properties.insert(
+                0, f"BC Score: {bc_val_fmt}{bridge_tag}"
+            )
+        if community_idx is not None and bc_scores is not None:
+            properties.insert(1, f"Communauté: #{community_idx}")
         title = "<br>".join(properties)
 
         net.add_node(

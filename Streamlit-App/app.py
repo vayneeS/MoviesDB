@@ -6,6 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from modules.neo4j_connector import Neo4jConnector
 from modules.graph_builder import build_pyvis_graph
+from modules.graph_analyzer import analyze_graph, COMMUNITY_METHODS
 from modules.ui_helpers import sidebar_filters
 
 # Chargement des variables d'environnement depuis .env
@@ -76,6 +77,30 @@ st.sidebar.markdown(f"**Nœuds récupérés :** {len(nodes)}")
 st.sidebar.markdown(f"**Relations récupérées :** {len(relationships)}")
 
 # ========================================
+# Section Analyse — Betweenness Centrality
+# ========================================
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔬 Analyse topologique")
+enable_analysis = st.sidebar.toggle(
+    "Mode Analyse (Betweenness Centrality)", value=False
+)
+bc_threshold = 0.0
+top_n = 5
+community_method = "louvain"
+if enable_analysis:
+    _method_keys = list(COMMUNITY_METHODS.keys())
+    method_label = st.sidebar.selectbox(
+        "Algorithme de communautés",
+        _method_keys,
+        index=_method_keys.index("Louvain"),
+    )
+    community_method = COMMUNITY_METHODS[method_label]
+    bc_threshold = st.sidebar.slider(
+        "Seuil BC minimum", 0.0, 1.0, 0.1, 0.01
+    )
+    top_n = st.sidebar.slider("Top N nœuds ponts", 3, 30, 5)
+
+# ========================================
 # Section Auteur
 # ========================================
 st.sidebar.markdown("---")
@@ -97,14 +122,59 @@ st.sidebar.markdown(_vaynee_badge)
 STYLE_FILE = APP_DIR / "assets" / "style.grass"
 
 if nodes:
+    # --- Analyse topologique (optionnelle) ---
+    bc_scores = None
+    communities = None
+    analysis = None
+    if enable_analysis:
+        analysis = analyze_graph(
+                nodes, relationships,
+                community_method=community_method
+            )
+        bc_scores = analysis["bc"]
+        communities = analysis["communities"]
+
     result = build_pyvis_graph(
         nodes,
         relationships,
         height="750px",
         style_file=STYLE_FILE,
-        debug=False
+        debug=False,
+        bc_scores=bc_scores,
+        communities=communities,
+        bc_threshold=bc_threshold,
     )
     graph_html = result
+
+    # --- Tableau Top-N nœuds ponts ---
+    if enable_analysis and analysis:
+        st.markdown("#### 🌉 Top nœuds ponts (Betweenness Centrality)")
+        top_bridges = analysis["top_bridges"][:top_n]
+        id_to_name = {n["id"]: n.get("name") or n.get("title") or n["id"]
+                      for n in nodes}
+        id_to_label = {}
+        for n in nodes:
+            lbl = n.get("labels") or n.get("label") or "?"
+            if isinstance(lbl, list):
+                lbl = ", ".join(lbl)
+            id_to_label[n["id"]] = lbl
+        nb_communities = len(set(communities.values()))
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Nœuds analysés", len(nodes))
+        col2.metric("Sous-graphes détectés", nb_communities)
+        col3.metric("Nœuds ponts (seuil)", sum(
+            1 for _, s in analysis["top_bridges"] if s >= bc_threshold
+        ))
+        table_data = [
+            {
+                "Rang": i + 1,
+                "Nom": id_to_name.get(nid, nid),
+                "Type": id_to_label.get(nid, "?"),
+                "Score BC": round(score, 5),
+            }
+            for i, (nid, score) in enumerate(top_bridges)
+        ]
+        st.dataframe(table_data, use_container_width=True)
 
     # Affiche le graphe
     components.html(graph_html, height=750, scrolling=True)
