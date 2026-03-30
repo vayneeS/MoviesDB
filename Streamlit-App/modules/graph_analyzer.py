@@ -1,7 +1,6 @@
 """Analyse topologique du graphe : Betweenness Centrality + communautés."""
 import networkx as nx
 
-
 # Palette de couleurs distinctes pour les communautés
 _COMMUNITY_COLORS = [
     "#e74c3c",  # rouge

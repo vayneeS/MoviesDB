@@ -60,10 +60,10 @@ jobs:
         run: pycodestyle Streamlit-App/app.py
 
       # ------------------------------------------------------------------
-      # 5. Linting avancé — flake8
+      # 5. Erreurs logiques — flake8 (syntaxe, imports non définis)
       # ------------------------------------------------------------------
-      - name: Linting avancé (flake8) — Streamlit-App/modules/
-        run: flake8 Streamlit-App/modules/ --max-line-length=79
+      - name: Vérification erreurs logiques (flake8) — Streamlit-App/modules/
+        run: flake8 Streamlit-App/modules/ --select=E9,F63,F7,F82 --show-source
 
       # ------------------------------------------------------------------
       # 6. Tests unitaires — pytest

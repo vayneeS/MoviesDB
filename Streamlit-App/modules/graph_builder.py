@@ -1,7 +1,8 @@
 """Module de construction de graphes avec Pyvis."""
-from pyvis.network import Network
-import re
 import hashlib
+import re
+
+from pyvis.network import Network
 
 
 def hex_to_rgba(hex_color):
