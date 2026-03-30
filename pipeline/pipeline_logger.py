@@ -1,4 +1,5 @@
 import logging
+import time
 from pathlib import Path
 
 
@@ -27,7 +28,7 @@ def setup_logger(level=logging.INFO):
     logger.addHandler(console_handler)
 
     file_handler = logging.FileHandler(
-        'pipeline/pipeline.log', mode='a', encoding='utf-8')
+        f"pipeline/pipeline{time.strftime('%Y-%m-%d_%H-%M')}.log", mode='w', encoding='utf-8')
     # file_handler.setLevel("DEBUG")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
