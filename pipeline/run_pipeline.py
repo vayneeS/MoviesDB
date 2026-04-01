@@ -242,7 +242,8 @@ def update_csv_file(file):
     print(file.name, "shape after read:", marvel_df.shape)
 
     if columns == columns_characters:
-        marvel_df['character_name'] = marvel_df['character_name'].apply(lambda x: x.strip().title() if isinstance(x, str) else x)
+        marvel_df['character_name'] = marvel_df['character_name'].apply(
+            lambda x: x.strip().title() if isinstance(x, str) else x)
 
     marvel_df.to_csv(file, index=False)
     check_df = pd.read_csv(file)
