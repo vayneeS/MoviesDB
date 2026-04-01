@@ -197,6 +197,7 @@ def cleanup():
 
 def update_csv_file(file):
     """Update a CSV file with new column names."""
+
     columns_movies = [
         "title_id",
         "primary_title",
@@ -211,14 +212,13 @@ def update_csv_file(file):
         "person_id", "title_id"]
     columns_actors = ["person_id", "person_name", "born", "died"]
     columns_person_plays_character = ["person_id", "character_name"]
-
     COLUMN_MAP = {
         "character_appears_in_movie": columns_character_appears_in_movie,
         "person_plays_character": columns_person_plays_character,
-        "characters": columns_characters,
-        "movies": columns_movies,
         "person_produces_movie": columns_producers,
         "person_directs_movie": columns_directors,
+        "characters": columns_characters,
+        "movies": columns_movies,
         "actors": columns_actors,
     }
     name = file.name.lower()
@@ -234,7 +234,6 @@ def update_csv_file(file):
 
     marvel_df = pd.read_csv(
         file,
-        # on_bad_lines="skip",
         sep=",",
         header=None,
         encoding="utf-8",
@@ -242,12 +241,8 @@ def update_csv_file(file):
         names=columns)
     print(file.name, "shape after read:", marvel_df.shape)
 
-    # if "character_name" in marvel_df.columns:
-    #     print(marvel_df["character_name"].head())
-    #     marvel_df["character_name"] = marvel_df["character_name"].str.strip(
-    #         '[]"\'\\ ')  # remove [ ] " '
-    # remove any remaining whitespace
-    # marvel_df["character_name"] = marvel_df["character_name"].str.strip()
+    if columns == columns_characters:
+        marvel_df['character_name'] = marvel_df['character_name'].apply(lambda x: x.strip().title() if isinstance(x, str) else x)
 
     marvel_df.to_csv(file, index=False)
     check_df = pd.read_csv(file)
@@ -290,14 +285,14 @@ def main():
         copy_tsv_to_container()
 
         db_setup_files = [
-            "imdb-create-db.sql",
-            "imdb-create-tables.sql",
-            "imdb-load-data.sql",
-            "imdb-add-constraints.sql",
-            "imdb-add-index.sql",
-            "create_movies_table.sql"
+            "imdb_create_db.sql",
+            "imdb_create_tables.sql",
+            "imdb_load_data.sql",
+            "imdb_add_character.sql",
+            "imdb_add_constraints.sql",
+            "imdb_add_index.sql",
+            "imdb_create_movies_table.sql"
         ]
-
         # Execute SQL files to create DB, tables, load data, add constraints
         # and indexes
         for sql in db_setup_files:

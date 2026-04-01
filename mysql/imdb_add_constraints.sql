@@ -7,7 +7,6 @@ ADD PRIMARY KEY (episode_title_id);
 ALTER TABLE people
 ADD PRIMARY KEY (person_id);
 
-
 ALTER TABLE ratings
 ADD PRIMARY KEY (title_id);
 
