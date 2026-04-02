@@ -1,6 +1,6 @@
 SELECT DISTINCT
-    c.title_id,
-    jt.character_name
+    c.title_id AS movie_id,
+    jt.character_name AS character_name
 INTO OUTFILE
     '/var/lib/mysql-files/marvel_character_appears_in_movie.csv'
 FIELDS TERMINATED BY ','
@@ -16,8 +16,8 @@ CROSS JOIN JSON_TABLE(
 ) AS jt
 WHERE
     c.show_characters IS NOT NULL
-    AND c.show_characters NOT LIKE '%Self%'
-    AND LOWER(c.category) != 'self'
-    AND c.category NOT LIKE 'archive_%'
-    AND jt.character_name NOT LIKE '%Self%'
-ORDER BY c.title_id, jt.character_name;
+    -- AND c.show_characters NOT LIKE '%Self%'
+    -- AND LOWER(c.category) != 'self'
+    -- AND c.category NOT LIKE 'archive_%'
+    -- AND jt.character_name NOT LIKE '%Self%'
+ORDER BY movie_id, character_name;

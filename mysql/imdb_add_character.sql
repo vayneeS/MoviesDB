@@ -3,11 +3,25 @@
 
 USE IMDb;
 
-INSERT INTO crew (title_id, person_id, category, job, show_characters)
-SELECT 'tt0371746', 'nm0000375', 'actor', NULL, '["Iron Man"]'
-WHERE NOT EXISTS (
-    SELECT 1 FROM crew
-    WHERE title_id = 'tt0371746'
-    AND person_id = 'nm0000375'
-    AND show_characters = '["Iron Man"]'
-);
+-- INSERT INTO crew (title_id, person_id, category, job, show_characters)
+-- VALUES ('tt0371746', 'nm0000375', 'actor', NULL, '["Iron Man"]'),
+--        ('tt1228705', 'nm0000375', 'actor', NULL, '["Iron Man"]'),
+--        ('tt1300854', 'nm0000375', 'actor', NULL, '["Iron Man"]');
+
+UPDATE crew
+SET show_characters = JSON_ARRAY_APPEND(show_characters, '$', 'Iron Man')
+WHERE title_id = 'tt0371746'
+  AND person_id = 'nm0000375'
+  AND JSON_CONTAINS(show_characters, '"Iron Man"') = 0;
+
+UPDATE crew
+SET show_characters = JSON_ARRAY_APPEND(show_characters, '$', 'Iron Man')
+WHERE title_id = 'tt1228705'
+  AND person_id = 'nm0000375'
+  AND JSON_CONTAINS(show_characters, '"Iron Man"') = 0;
+
+UPDATE crew
+SET show_characters = JSON_ARRAY_APPEND(show_characters, '$', 'Iron Man')
+WHERE title_id = 'tt1300854'
+  AND person_id = 'nm0000375'
+  AND JSON_CONTAINS(show_characters, '"Iron Man"') = 0;
