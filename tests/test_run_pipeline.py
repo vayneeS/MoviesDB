@@ -160,7 +160,7 @@ class TestExecuteSqlFile:
         exec_result = _make_proc(returncode=0)
 
         with patch("subprocess.run", return_value=exec_result), \
-             patch("time.time", side_effect=[0, 31]):
+                patch("time.time", side_effect=[0, 31]):
             run_pipeline.execute_sql_file(sql_file)  # ne lève pas
 
     def test_failure_raises_runtime_error(self, tmp_path):
@@ -174,7 +174,7 @@ class TestExecuteSqlFile:
             return 0.0 if _calls[0] == 1 else 100.0
 
         with patch("subprocess.run", return_value=exec_result), \
-             patch("time.time", side_effect=_fake_time):
+                patch("time.time", side_effect=_fake_time):
             with pytest.raises(RuntimeError, match="SQL execution failed"):
                 run_pipeline.execute_sql_file(sql_file)
 
@@ -189,7 +189,7 @@ class TestExecuteSqlFile:
             return 0.0 if _calls[0] == 1 else 100.0
 
         with patch("subprocess.run", return_value=exec_result), \
-             patch("time.time", side_effect=_fake_time):
+                patch("time.time", side_effect=_fake_time):
             with pytest.raises(RuntimeError, match="myfile.sql"):
                 run_pipeline.execute_sql_file(sql_file)
 
@@ -203,7 +203,7 @@ class TestExecuteSqlFile:
 
         with patch("subprocess.run",
                    side_effect=[sock_result, exec_result]) as mock_run, \
-             patch("time.time", return_value=0):
+                patch("time.time", return_value=0):
             run_pipeline.execute_sql_file(sql_file)
 
         # sock check + mysql exec = 2 appels
@@ -407,12 +407,12 @@ class TestMain:
         """Sans flag explicite, les trois étapes sont activées."""
         args = _make_args()  # tous à False
 
-        # run_command lève pour sortir de main() dès après l'activation des flags
+        # run_command lève pour sortir de main() dès après l'activation des flags  # noqa: E501
         with patch("run_pipeline.parse_args", return_value=args), \
-             patch("run_pipeline.setup_logger", return_value=MagicMock()), \
-             patch("run_pipeline.run_command",
-                   side_effect=RuntimeError("stop early")), \
-             patch("run_pipeline.cleanup"):
+                patch("run_pipeline.setup_logger", return_value=MagicMock()), \
+                patch("run_pipeline.run_command",
+                      side_effect=RuntimeError("stop early")), \
+                patch("run_pipeline.cleanup"):
             run_pipeline.main()
 
         assert args.createdb is True
@@ -424,26 +424,26 @@ class TestMain:
         args = _make_args(createdb=True)
 
         with patch("run_pipeline.parse_args", return_value=args), \
-             patch("run_pipeline.setup_logger", return_value=MagicMock()), \
-             patch("run_pipeline.run_command",
-                   side_effect=RuntimeError("Docker failed")), \
-             patch("run_pipeline.download_files") as mock_dl, \
-             patch("run_pipeline.cleanup"):
+                patch("run_pipeline.setup_logger", return_value=MagicMock()), \
+                patch("run_pipeline.run_command",
+                      side_effect=RuntimeError("Docker failed")), \
+                patch("run_pipeline.download_files") as mock_dl, \
+                patch("run_pipeline.cleanup"):
             run_pipeline.main()
 
         mock_dl.assert_not_called()
 
     def test_createdb_calls_download_and_copy(self):
-        """L'étape createdb déclenche download_files et copy_tsv_to_container."""
+        """L'étape createdb déclenche download_files et copy_tsv_to_container."""  # noqa: E501
         args = _make_args(createdb=True)
 
         with patch("run_pipeline.parse_args", return_value=args), \
-             patch("run_pipeline.setup_logger", return_value=MagicMock()), \
-             patch("run_pipeline.run_command"), \
-             patch("run_pipeline.download_files") as mock_dl, \
-             patch("run_pipeline.copy_tsv_to_container") as mock_copy, \
-             patch("run_pipeline.execute_sql_file"), \
-             patch("run_pipeline.cleanup"):
+                patch("run_pipeline.setup_logger", return_value=MagicMock()), \
+                patch("run_pipeline.run_command"), \
+                patch("run_pipeline.download_files") as mock_dl, \
+                patch("run_pipeline.copy_tsv_to_container") as mock_copy, \
+                patch("run_pipeline.execute_sql_file"), \
+                patch("run_pipeline.cleanup"):
             run_pipeline.main()
 
         mock_dl.assert_called_once()
@@ -454,12 +454,12 @@ class TestMain:
         args = _make_args(createdb=True, runqueries=False, createcsvs=False)
 
         with patch("run_pipeline.parse_args", return_value=args), \
-             patch("run_pipeline.setup_logger", return_value=MagicMock()), \
-             patch("run_pipeline.run_command"), \
-             patch("run_pipeline.download_files"), \
-             patch("run_pipeline.copy_tsv_to_container"), \
-             patch("run_pipeline.execute_sql_file"), \
-             patch("run_pipeline.cleanup") as mock_cleanup:
+                patch("run_pipeline.setup_logger", return_value=MagicMock()), \
+                patch("run_pipeline.run_command"), \
+                patch("run_pipeline.download_files"), \
+                patch("run_pipeline.copy_tsv_to_container"), \
+                patch("run_pipeline.execute_sql_file"), \
+                patch("run_pipeline.cleanup") as mock_cleanup:
             run_pipeline.main()
 
         mock_cleanup.assert_called_once()
@@ -470,11 +470,11 @@ class TestMain:
         args = _make_args(debug=True)
 
         with patch("run_pipeline.parse_args", return_value=args), \
-             patch("run_pipeline.setup_logger",
-                   return_value=MagicMock()) as mock_logger, \
-             patch("run_pipeline.run_command",
-                   side_effect=RuntimeError("stop early")), \
-             patch("run_pipeline.cleanup"):
+                patch("run_pipeline.setup_logger",
+                      return_value=MagicMock()) as mock_logger, \
+                patch("run_pipeline.run_command",
+                      side_effect=RuntimeError("stop early")), \
+                patch("run_pipeline.cleanup"):
             run_pipeline.main()
 
         mock_logger.assert_called_once_with(level=logging.DEBUG)
