@@ -1,0 +1,14 @@
+title: MoviesDB
+description: Documentation du projet Marvel Cinematic Universe Graph
+remote_theme: pages-themes/cayman@v0.2.0
+plugins:
+  - jekyll-remote-theme
+
+# Navigation
+header_pages:
+  - index.md
+  - documentation.md
+  - neo4j-scripts-guide.md
+  - Utilisation-script-run_pipeline.md
+  - imdb-schema.md
+  - workflow.md

@@ -1,0 +1,328 @@
+import subprocess
+import time
+from pathlib import Path
+import pandas as pd
+import os
+from dotenv import load_dotenv
+import requests
+import gzip
+import logging
+from pipeline_logger import setup_logger
+import argparse
+
+
+logger = logging.getLogger("imdb_pipeline.run_pipeline")
+
+# Config
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(PROJECT_ROOT / ".env")
+COMPOSE_FILE = PROJECT_ROOT / "docker" / "docker-compose.yml"
+SQL_DIR = PROJECT_ROOT / "mysql"
+DATA_DIR = PROJECT_ROOT / "data" / "tests"
+CONTAINER = "moviesdb_mysql"
+DB = "IMDb"
+DOCKER = "docker"
+MYSQL_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD")
+
+if not MYSQL_PASSWORD:
+    logger.error(
+        "MYSQL_ROOT_PASSWORD not set.\n"
+        "Create a .env file in project root.\n"
+        "See .env.example for required variables."
+    )
+    raise RuntimeError(
+        "Missing required environment variable: MYSQL_ROOT_PASSWORD")
+
+env = os.environ.copy()
+env["MYSQL_PWD"] = MYSQL_PASSWORD
+
+# functions
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run IMDb pipeline")
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="Enable debug logging"
+    )
+    parser.add_argument(
+        "-db",
+        "--createdb",
+        action="store_true",
+        help="Create database and tables"
+    )
+    parser.add_argument(
+        "-csv",
+        "--createcsvs",
+        action="store_true",
+        help="Create CSV files"
+    )
+    parser.add_argument(
+        "-q",
+        "--runqueries",
+        action="store_true",
+        help="Run SQL queries"
+    )
+    return parser.parse_args()
+
+
+def run_command(cmd, check=True):
+    """Run command"""
+    logger.info(f"\nRunning: {' '.join(map(str, cmd))}")
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        logger.warning("STDOUT:\n%s", result.stdout)
+        logger.warning("STDERR:\n%s", result.stderr)
+        if check:
+            logger.error(f"Command failed with exit code {result.returncode}")
+            raise RuntimeError(
+                f"Command failed with exit code {result.returncode}"
+            )
+
+    return result
+
+
+def download_files():
+    # Importer les données IMDB
+    urls = ['https://datasets.imdbws.com/name.basics.tsv.gz',
+            'https://datasets.imdbws.com/title.basics.tsv.gz',
+            'https://datasets.imdbws.com/title.episode.tsv.gz',
+            'https://datasets.imdbws.com/title.principals.tsv.gz',
+            'https://datasets.imdbws.com/title.ratings.tsv.gz']
+
+    # telechargement des fichiers
+    for url in urls:
+        filename = url.split('/')[-1]
+        target_path = PROJECT_ROOT / "data" / "raw" / filename
+        logger.info(target_path)
+
+        if target_path.exists():
+            logger.info(
+                "File %s already exists. Skipping download.",
+                target_path)
+        else:
+            response = requests.get(url, stream=True)
+
+            if response.status_code == 200:
+                with open(target_path, 'wb') as f:
+                    f.write(response.raw.read())
+
+        if target_path.suffix == ".gz":
+            tsv_path = target_path.with_suffix("")
+
+        with gzip.open(target_path, 'rb') as gz_file:
+            if tsv_path.exists():
+                logger.info(
+                    "File %s already exists. Skipping extraction.",
+                    tsv_path)
+            else:
+                logger.info("Extracting file to %s", tsv_path)
+                with open(tsv_path, 'wb') as f:
+                    f.write(gz_file.read())
+                logger.info("Extraction completed for %s", tsv_path)
+
+
+def copy_tsv_to_container():
+    file_names = [
+        "name.basics.tsv",
+        "title.basics.tsv",
+        "title.episode.tsv",
+        "title.principals.tsv",
+        "title.ratings.tsv",
+        "marvel_films.csv"]
+
+    for file in file_names:
+        logger.info(f"Copying {file} into docker container")
+        result = subprocess.run(["docker",
+                                 "cp",
+                                 f"{PROJECT_ROOT}/data/raw/{file}",
+                                 f"{CONTAINER}:/tmp/{file}"],
+                                capture_output=True,
+                                text=True,
+                                check=False)
+        logger.debug(result.stderr)
+
+
+def execute_sql_file(sql_file):
+    """Execute one SQL file inside container."""
+    logger.info(f"Executing SQL file: {sql_file.name}")
+
+    # Remove CSV file if it exists in container
+    start = time.time()
+
+    while time.time() - start < 30:
+        sock = subprocess.run(
+            [DOCKER, "exec", CONTAINER, "sh", "-c",
+             "test -S /var/run/mysqld/mysqld.sock"],
+            capture_output=True,
+            text=True
+        )
+        if sock.returncode == 0 and "ready" in sock.stdout:
+            logger.info("MySQL socket is ready.")
+            break
+    with open(sql_file, "rb") as f:
+        result = subprocess.run(
+            [DOCKER, "exec", "-e",
+             f"MYSQL_PWD={MYSQL_PASSWORD}", "-i",
+             CONTAINER,
+             "mysql", "--local-infile=1",
+             "-u",
+             "root",
+             DB],
+            stdin=f,
+            text=True
+        )
+
+    if result.returncode != 0:
+        logger.error(f"Error executing {sql_file.name}:\n{result.stderr}")
+        raise RuntimeError(f"SQL execution failed for {sql_file.name}")
+
+    else:
+        logger.info(f" Finished running {sql_file.name}")
+
+
+def cleanup():
+    """Stop and remove Docker container."""
+    logger.info("Cleaning up: Stopping Docker container...")
+    run_command([DOCKER, "compose", "-f", str(COMPOSE_FILE), "down"])
+
+
+def update_csv_file(file):
+    """Update a CSV file with new column names."""
+
+    columns_movies = [
+        "title_id",
+        "primary_title",
+        "genres",
+        "start_year",
+        "runtime_minutes"]
+    columns_characters = ["character_name"]
+    columns_character_appears_in_movie = ["title_id", "character_name"]
+    columns_directors = [
+        "title_id", "person_id"]
+    # columns_producers = [
+    #     "title_id", "person_id"]
+    columns_actors = ["person_id", "person_name", "born", "died"]
+    columns_person_plays_character = ["person_id", "character_name"]
+    COLUMN_MAP = {
+        "character_appears_in_movie": columns_character_appears_in_movie,
+        "person_plays_character": columns_person_plays_character,
+        "person_produces_movie": columns_directors,
+        "person_directs_movie": columns_directors,
+        "characters": columns_characters,
+        "movies": columns_movies,
+        "actors": columns_actors
+    }
+    name = file.name.lower()
+
+    columns = None
+    for key, value in COLUMN_MAP.items():
+        if key in name:
+            columns = value
+            break
+
+    if columns is None:
+        raise ValueError(f"No column mapping found for file: {file.name}")
+
+    marvel_df = pd.read_csv(
+        file,
+        sep=",",
+        header=None,
+        encoding="utf-8",
+        engine="python",
+        names=columns)
+    print(file.name, "shape after read:", marvel_df.shape)
+
+    if columns == columns_characters:
+        marvel_df['character_name'] = marvel_df['character_name'].apply(
+            lambda x: x.strip().title() if isinstance(x, str) else x)
+
+    marvel_df.to_csv(file, index=False)
+    check_df = pd.read_csv(file)
+    logger.debug(check_df.head())
+    logger.debug(marvel_df.head())
+    logger.debug(marvel_df.shape)
+    logger.info("Returned rows: %d", len(marvel_df))
+
+# Pipeline execution
+
+
+def main():
+    args = parse_args()
+
+    if not any([args.createdb, args.runqueries, args.createcsvs]):
+        args.createdb = True
+        args.runqueries = True
+        args.createcsvs = True
+
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logger = setup_logger(level=log_level)
+
+    # Start Docker container
+    try:
+        run_command([
+            DOCKER, "compose",
+            "-f", str(COMPOSE_FILE),
+            "up", "-d"
+        ])
+        logger.info("Docker container started successfully.")
+    except Exception as e:
+        logger.error(f"Error starting Docker container: {e}")
+        return
+    if args.createdb:
+        logger.info("Creating database and tables...")
+        # Download files from IMDB
+        download_files()
+
+        # Copy TSV files into container
+        copy_tsv_to_container()
+
+        db_setup_files = [
+            "imdb_create_db.sql",
+            "imdb_create_tables.sql",
+            "imdb_load_data.sql",
+            "imdb_add_character.sql",
+            "imdb_add_constraints.sql",
+            "imdb_add_index.sql",
+            "imdb_create_movies_table.sql"
+        ]
+        # Execute SQL files to create DB, tables, load data, add constraints
+        # and indexes
+        for sql in db_setup_files:
+            execute_sql_file(SQL_DIR / sql)
+
+    if args.runqueries:
+        logger.info("Running SQL queries and creating CSV files...")
+        #  Get SQL files
+        sql_files = sorted(SQL_DIR.glob("*marvel*.sql"))
+        if not sql_files:
+            logger.error("No SQL files found in %s", SQL_DIR)
+            raise FileNotFoundError("No SQL files found.")
+
+        # Remove any existing CSV files in container
+        # generate new ones
+        run_command([DOCKER, "exec", CONTAINER, "sh", "-c",
+                    "rm -f /var/lib/mysql-files/*.csv"])
+        #  Execute each SQL file sequentially
+        for sql_file in sql_files:
+            execute_sql_file(sql_file)
+
+        logger.info("All SQL queries executed successfully.")
+
+    if args.createcsvs:
+        for csv in DATA_DIR.glob("*marvel*.csv"):
+            update_csv_file(csv)
+
+    cleanup()
+
+
+if __name__ == "__main__":
+    main()
