@@ -153,7 +153,8 @@ def main():
         sys.exit(0)
 
     # Vérifie la conformité PEP8
-    total_errors, _ = check_pep8_compliance(python_files)
+    config_file = str(root_dir / ".pycodestyle")
+    total_errors, _ = check_pep8_compliance(python_files, config_file=config_file)
 
     # Affiche le résumé
     is_compliant = print_summary(total_errors, len(python_files))

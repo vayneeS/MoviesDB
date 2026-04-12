@@ -5,7 +5,9 @@ max-line-length = 100
 # Ignorer certaines erreurs spécifiques si nécessaire
 # E501: line too long (déjà géré par max-line-length)
 # W503: line break before binary operator (style moderne accepté)
-ignore = W503
+# W504: line break after binary operator (W503 et W504 sont mutuellement exclusifs)
+# E226: espace manquant autour des opérateurs arithmétiques (ex: "="*70)
+ignore = W503,W504,E226
 
 # Répertoires à exclure de la vérification
 exclude = 
