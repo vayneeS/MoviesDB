@@ -1,0 +1,44 @@
+node.Person {
+  color: #abaa86;
+  size: 25px;
+}
+
+node.Actor {
+  color: #9bb273;
+  size: 25px;
+}
+
+node.Character {
+  color: #296218;
+  size: 25px;
+}
+
+node.Movie {
+  color: #a6ff86;
+  size: 25px;
+}
+
+relationship.PLAY {
+  color: #000000;
+  width: 1px;
+}
+
+relationship.APPEARS_IN {
+  color: #000000;
+  width: 1px;
+}
+
+relationship.APPEAR_IN {
+  color: #000000;
+  width: 1px;
+}
+
+relationship.DIRECTED {
+  color: #000000;
+  width: 1px;
+}
+
+relationship.PRODUCED {
+  color: #000000;
+  width: 1px;
+}

@@ -1,0 +1,28 @@
+[pycodestyle]
+# Longueur maximale de ligne (PEP8 recommande 79, mais 100 est courant)
+max-line-length = 100
+
+# Ignorer certaines erreurs spécifiques si nécessaire
+# E501: line too long (déjà géré par max-line-length)
+# W503: line break before binary operator (style moderne accepté)
+# W504: line break after binary operator (W503 et W504 sont mutuellement exclusifs)
+# E226: espace manquant autour des opérateurs arithmétiques (ex: "="*70)
+ignore = W503,W504,E226
+
+# Répertoires à exclure de la vérification
+exclude = 
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    env,
+    .env,
+    build,
+    dist,
+    *.egg-info,
+    .eggs,
+    docker
+
+# Statistiques détaillées
+statistics = True
+count = True

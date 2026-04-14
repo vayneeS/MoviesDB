@@ -1,3 +1,0 @@
--- imdb-create-db.sql
-DROP DATABASE IF EXISTS IMDb; 
-CREATE DATABASE IMDb;
