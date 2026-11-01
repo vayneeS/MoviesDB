@@ -2,28 +2,57 @@ name: CD — Keep-Alive Streamlit App
 
 on:
   schedule:
-    # Ping quotidien à 9h00 UTC — Streamlit Community Cloud endort les apps
-    # après 7 jours d'inactivité ; un ping par jour est largement suffisant.
-    - cron: "0 9 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 jobs:
   ping-streamlit:
-    name: Ping Streamlit App
+    name: Ping Streamlit App (Selenium)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - name: Envoyer une requête HTTP à l'application Streamlit
+      - name: Installer Selenium + WebDriver Manager
+        run: pip install selenium webdriver-manager
+
+      - name: Ouvrir l'application et maintenir la session active
         run: |
-          echo "Ping de https://amazing-mcu-graph.streamlit.app/ ..."
-          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-            --max-time 30 \
-            --retry 3 \
-            --retry-delay 10 \
-            https://amazing-mcu-graph.streamlit.app/)
-          echo "Code HTTP reçu : $HTTP_STATUS"
-          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 400 ]; then
-            echo "Échec : l'application a retourné le code $HTTP_STATUS"
-            exit 1
-          fi
-          echo "Succès : l'application est active."
+          python3 - << 'PYEOF'
+          import time
+          from selenium import webdriver
+          from selenium.webdriver.chrome.service import Service
+          from selenium.webdriver.chrome.options import Options
+          from webdriver_manager.chrome import ChromeDriverManager
+
+          URL = "https://mcugraph.streamlit.app/"
+
+          opts = Options()
+          opts.add_argument("--headless=new")
+          opts.add_argument("--no-sandbox")
+          opts.add_argument("--disable-dev-shm-usage")
+          opts.add_argument("--disable-gpu")
+          opts.add_argument("--window-size=1920,1080")
+
+          driver = webdriver.Chrome(
+              service=Service(ChromeDriverManager().install()),
+              options=opts,
+          )
+
+          try:
+              driver.get(URL)
+              print(f"Titre : {driver.title}")
+              # Maintenir la session WebSocket ouverte 15 secondes
+              time.sleep(15)
+              print("Session active — succès.")
+
+          finally:
+              driver.quit()
+          PYEOF
+
+      - name: Uploader la capture d'écran en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-error
+          path: /tmp/selenium_error.png
+          if-no-files-found: ignore
